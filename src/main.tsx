@@ -350,28 +350,28 @@ function App() {
           <MilkManagement animals={animalsList} onOpenAddAnimal={() => setAddAnimalOpen(true)} onAnimal={(a) => openAnimal(a, "Milk Management")} />
         )}
         {page === "Breeding" && (
-          <Breeding animals={animalsList} onAnimal={(a) => openAnimal(a, "Breeding")} />
+          <Breeding animals={animalsList} onAnimal={(a) => openAnimal(a, "Breeding")} onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Health" && (
-          <Health animals={animalsList} onAnimal={(a) => openAnimal(a, "Health")} />
+          <Health animals={animalsList} onAnimal={(a) => openAnimal(a, "Health")} onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Feed" && (
-          <Feed />
+          <Feed onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Inventory" && (
-          <Inventory />
+          <Inventory onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Finance" && (
-          <Finance />
+          <Finance onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Reports" && (
-          <ReportsModule animals={animalsList} />
+          <ReportsModule animals={animalsList} onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Tasks & Reminders" && (
-          <TasksModule animals={animalsList} onAnimal={(a) => openAnimal(a, "Tasks & Reminders")} />
+          <TasksModule animals={animalsList} onAnimal={(a) => openAnimal(a, "Tasks & Reminders")} onNavigate={(p) => setPage(p as Page)} />
         )}
         {page === "Settings" && (
-          <SettingsModule onNavigate={(p) => setPage(p)} />
+          <SettingsModule onNavigate={(p) => setPage(p as Page)} />
         )}
       </main>
 
@@ -2558,47 +2558,51 @@ function MilkManagement({
 function Breeding({
   animals,
   onAnimal,
+  onNavigate,
 }: {
   animals: Animal[];
   onAnimal?: (a: Animal) => void;
+  onNavigate?: (page: string) => void;
 }) {
-  return <BreedingModule animals={animals} onAnimal={onAnimal} />;
+  return <BreedingModule animals={animals} onAnimal={onAnimal} onNavigate={onNavigate} />;
 }
 
 // 6. HEALTH COMPONENT
 function Health({
   animals,
   onAnimal,
+  onNavigate,
 }: {
   animals: Animal[];
   onAnimal?: (a: Animal) => void;
+  onNavigate?: (page: string) => void;
 }) {
-  return <HealthModule animals={animals} onAnimal={onAnimal} />;
+  return <HealthModule animals={animals} onAnimal={onAnimal} onNavigate={onNavigate} />;
 }
 
 // 7. FEED & RATION COMPONENT
-function Feed() {
-  return <FeedModule />;
+function Feed({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+  return <FeedModule onNavigate={onNavigate} />;
 }
 
 // 8. INVENTORY COMPONENT
-function Inventory() {
-  return <InventoryModule />;
+function Inventory({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+  return <InventoryModule onNavigate={onNavigate} />;
 }
 
 // 9. FINANCE COMPONENT
-function Finance() {
-  return <FinanceModule />;
+function Finance({ onNavigate }: { onNavigate?: (page: string) => void } = {}) {
+  return <FinanceModule onNavigate={onNavigate} />;
 }
 
 // 10. REPORTS COMPONENT
-function Reports({ animals = [] }: { animals?: Animal[] } = {}) {
-  return <ReportsModule animals={animals} />;
+function Reports({ animals = [], onNavigate }: { animals?: Animal[]; onNavigate?: (page: string) => void } = {}) {
+  return <ReportsModule animals={animals} onNavigate={onNavigate} />;
 }
 
 // 11. TASKS COMPONENT
-function Tasks({ animals = [], onAnimal }: { animals?: Animal[]; onAnimal?: (a: Animal) => void } = {}) {
-  return <TasksModule animals={animals} onAnimal={onAnimal} />;
+function Tasks({ animals = [], onAnimal, onNavigate }: { animals?: Animal[]; onAnimal?: (a: Animal) => void; onNavigate?: (page: string) => void } = {}) {
+  return <TasksModule animals={animals} onAnimal={onAnimal} onNavigate={onNavigate} />;
 }
 
 // 12. SETTINGS COMPONENT

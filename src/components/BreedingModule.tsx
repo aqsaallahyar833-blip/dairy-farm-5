@@ -1454,7 +1454,7 @@ export function BreedingModule({ animals, onAnimal, onNavigate }: BreedingModule
           <button
             className="secondary"
             id="btn-refresh-breeding"
-            onClick={loadData}
+            onClick={() => fetchBreedingData(true)}
             disabled={loading || refreshing}
             title="Reload breeding records from database"
           >

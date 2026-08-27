@@ -542,29 +542,77 @@ app.post("/api/farms/switch", (req: Request, res: Response) => {
   res.json({ success: true, activeFarmId });
 });
 
-// --- DASHBOARD SUMMARY ---
+// --- DASHBOARD SUMMARY, TOP PRODUCERS & LIVE REMINDERS ---
 app.get("/api/dashboard/summary", (req: Request, res: Response) => {
-  const totalAnimals = animalsDb.length || initialAnimals.length;
+  if (!animalsDb || animalsDb.length === 0) animalsDb = [...initialAnimals];
+  if (!milkRecordsDb || milkRecordsDb.length === 0) milkRecordsDb = generateInitialMilkRecords();
+  if (!breedingDb || breedingDb.length === 0) breedingDb = [...initialBreedingEvents];
+  if (!calvingDb || calvingDb.length === 0) calvingDb = [...initialCalvingRecords];
+  if (!healthDb || healthDb.length === 0) healthDb = [...initialHealthRecords];
+  if (!vaccinationsDb || vaccinationsDb.length === 0) vaccinationsDb = [...initialVaccinations];
+  if (!transactionsDb || transactionsDb.length === 0) transactionsDb = [...initialTransactions];
+  if (!tasksDb || tasksDb.length === 0) tasksDb = [...initialTasks];
+
+  const todayStr = getLocalDateString(0);
+  const yesterdayStr = getLocalDateString(-1);
+  const currentYearMonth = todayStr.substring(0, 7);
+  const currentMonthStart = `${currentYearMonth}-01`;
+
+  // Herd counts
+  const totalAnimals = animalsDb.filter(a => a.status !== "Sold" && a.status !== "Dead").length || animalsDb.length;
   const lactatingCows = animalsDb.filter(a => a.status === "Lactating").length;
   const dryCows = animalsDb.filter(a => a.status === "Dry").length;
-  const pregnantCows = animalsDb.filter(a => a.status === "Pregnant" || (a.status === "Lactating" && breedingDb.some(b => b.animalId === a.id && b.result === "Positive"))).length;
+  const pregnantCows = animalsDb.filter(a => 
+    a.status === "Pregnant" || 
+    breedingDb.some(b => b.animalId === a.id && b.result === "Positive" && (!b.calvingDate || b.calvingDate >= todayStr))
+  ).length;
   const heifers = animalsDb.filter(a => a.status === "Heifer").length;
   const calves = animalsDb.filter(a => a.status === "Calf").length;
   const bulls = animalsDb.filter(a => a.status === "Bull").length;
-  const sickAnimals = animalsDb.filter(a => a.status === "Sick" || healthDb.some(h => h.animalId === a.id && h.status === "In Treatment")).length;
-  const quarantineAnimals = animalsDb.filter(a => a.status === "Quarantine").length;
+  const sickAnimals = animalsDb.filter(a => 
+    a.status === "Sick" || 
+    a.status === "Quarantine" || 
+    healthDb.some(h => (h.animalId === a.id || (h.animal && h.animal.includes(a.id))) && (h.status === "In Treatment" || h.status === "Sick" || h.status === "Active"))
+  ).length;
 
-  const todayMilkLitres = milkRecordsDb.filter(r => r.date === "2024-05-14").reduce((acc, r) => acc + (r.totalLitres || 0), 0) || 1980.5;
-  const yesterdayMilkLitres = milkRecordsDb.filter(r => r.date === "2024-05-13").reduce((acc, r) => acc + (r.totalLitres || 0), 0) || 1915.0;
-  const avgMilkPerCow = lactatingCows > 0 ? (todayMilkLitres / lactatingCows) : 24.3;
-  const monthlyMilkLitres = 26540.0;
-  const milkRevenue = monthlyMilkLitres * (farmSettings.milkPricePerLitre || 150);
+  // Milk calculations
+  const todayMilkRecords = milkRecordsDb.filter(r => r.date === todayStr);
+  let todayMilkLitres = todayMilkRecords.reduce((acc, r) => acc + (Number(r.totalLitres) || (Number(r.morningLitres || 0) + Number(r.eveningLitres || 0) + Number(r.thirdMilkingLitres || 0))), 0);
+  todayMilkLitres = Number(todayMilkLitres.toFixed(1));
 
-  const totalIncome = transactionsDb.filter(t => t.type === "Income").reduce((a, b) => a + b.amount, 0) || 655500;
-  const totalExpenses = transactionsDb.filter(t => t.type === "Expense").reduce((a, b) => a + b.amount, 0) || 249500;
+  const yesterdayMilkRecords = milkRecordsDb.filter(r => r.date === yesterdayStr);
+  let yesterdayMilkLitres = yesterdayMilkRecords.reduce((acc, r) => acc + (Number(r.totalLitres) || 0), 0);
+  yesterdayMilkLitres = Number(yesterdayMilkLitres.toFixed(1));
+
+  const avgMilkPerCow = lactatingCows > 0 ? Number((todayMilkLitres / lactatingCows).toFixed(1)) : 0;
+
+  // Month to date milk
+  const monthMilkRecords = milkRecordsDb.filter(r => r.date.startsWith(currentYearMonth) || (r.date >= currentMonthStart && r.date <= todayStr));
+  let monthToDateMilkLitres = monthMilkRecords.reduce((acc, r) => acc + (Number(r.totalLitres) || 0), 0);
+  if (monthToDateMilkLitres === 0 && todayMilkLitres > 0) {
+    monthToDateMilkLitres = todayMilkLitres;
+  }
+  monthToDateMilkLitres = Number(monthToDateMilkLitres.toFixed(1));
+
+  // Revenue & Finances
+  const milkPrice = Number(farmSettings.milkPricePerLitre || 150);
+  const milkRevenue = Math.round(monthToDateMilkLitres * milkPrice);
+  
+  const totalIncome = transactionsDb.filter(t => t.type === "Income").reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const totalExpenses = transactionsDb.filter(t => t.type === "Expense").reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
   const estimatedProfit = totalIncome - totalExpenses;
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const currentMonthIncome = transactionsDb
+    .filter(t => t.type === "Income" && (t.date.startsWith(currentYearMonth) || t.date >= currentMonthStart))
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const monthlyGrossRevenue = currentMonthIncome > 0 ? currentMonthIncome : (milkRevenue > 0 ? milkRevenue : totalIncome);
+
+  const currentMonthExpenses = transactionsDb
+    .filter(t => t.type === "Expense" && (t.date.startsWith(currentYearMonth) || t.date >= currentMonthStart))
+    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  const monthExpenses = currentMonthExpenses > 0 ? currentMonthExpenses : totalExpenses;
+
+  // Health
   const totalMedicalRecords = healthDb.length;
   const activeCasesInTreatment = healthDb.filter(
     h => h.status === "In Treatment" || h.status === "Sick" || h.status === "Active"
@@ -580,55 +628,266 @@ app.get("/api/dashboard/summary", (req: Request, res: Response) => {
   const vaccinationProgramsCompleted = vaccinationsDb.filter(v => v.status === "Completed").length;
   const vaccinationProgramsTotal = vaccinationsDb.length;
 
-  const openCases = activeCasesInTreatment;
-  const pendingTasksCount = tasksDb.filter(t => t.status !== "Completed").length || 0;
+  // Reproduction & AI
+  const positiveBreedings = breedingDb.filter(b => b.result === "Positive");
+  const pregnanciesThisMonth = positiveBreedings.filter(b => 
+    (b.pdDate && b.pdDate.startsWith(currentYearMonth)) || 
+    (b.aiDate && b.aiDate.startsWith(currentYearMonth)) ||
+    (b.heatDate && b.heatDate.startsWith(currentYearMonth))
+  ).length || positiveBreedings.length;
+
+  const breedingEventsThisMonth = breedingDb.filter(b => 
+    (b.aiDate && b.aiDate.startsWith(currentYearMonth)) || 
+    (b.heatDate && b.heatDate.startsWith(currentYearMonth))
+  ).length || breedingDb.length;
+
+  const calvingsAnticipated = breedingDb.filter(b => 
+    b.result === "Positive" && (!b.expectedCalving || b.expectedCalving >= todayStr)
+  ).length || calvingDb.filter(c => !c.actualDate || c.expectedDate >= todayStr).length;
+
+  const pendingTasksCount = tasksDb.filter(t => !t.completed && t.status !== "Completed").length;
+  const activeAlertsCount = milkAlertsDb.length + (sickAnimals > 0 ? 1 : 0);
+
+  const summaryData = {
+    totalHerdAnimals: totalAnimals,
+    totalAnimals,
+    lactatingCattle: lactatingCows,
+    lactatingCows,
+    activeAnimals: lactatingCows,
+    confirmedPregnant: pregnantCows,
+    pregnantCows,
+    activePregnancies: pregnantCows,
+    inTreatmentSick: sickAnimals,
+    sickAnimals,
+    openHealthCases: activeCasesInTreatment,
+    activeCasesInTreatment,
+    dryCows,
+    heifers,
+    calves,
+    bulls,
+
+    todayMilkLitres,
+    todayMilkTotal: todayMilkLitres,
+    yesterdayMilkLitres,
+    avgMilkPerCow,
+    monthToDateMilkLitres,
+    monthlyMilkLitres: monthToDateMilkLitres,
+    monthlyGrossRevenue,
+    monthRevenue: monthlyGrossRevenue,
+    milkRevenue,
+
+    pregnanciesThisMonth,
+    pregnancyPositiveThisMonth: pregnanciesThisMonth,
+    totalBreedingEvents: breedingDb.length,
+    breedingEventsThisMonth,
+    calvingsAnticipated,
+    calvingsThisMonth: calvingsAnticipated,
+
+    totalMedicalRecords,
+    milkWithdrawalHolds,
+    vaccinationProgramsCompleted,
+    vaccinationProgramsTotal,
+
+    totalRevenue: totalIncome,
+    totalIncome,
+    totalOperationalCost: totalExpenses,
+    totalExpenses,
+    monthExpenses,
+    netProfit: estimatedProfit,
+    estimatedProfit,
+
+    pendingTasksCount,
+    activeAlertsCount
+  };
 
   res.json({
     success: true,
-    data: {
-      totalAnimals,
-      activeAnimals: lactatingCows || 7,
-      lactatingCows: lactatingCows || 7,
-      dryCows,
-      pregnantCows,
-      activePregnancies: pregnantCows || 2,
-      heifers,
-      calves,
-      bulls,
-      sickAnimals,
-      quarantineAnimals,
-      todayMilkLitres,
-      yesterdayMilkLitres,
-      avgMilkPerCow: Number(avgMilkPerCow.toFixed(1)),
-      monthlyMilkLitres,
-      milkRevenue,
-      monthRevenue: milkRevenue || 3981000,
-      totalIncome,
-      totalExpenses,
-      monthExpenses: totalExpenses,
-      estimatedProfit,
-      openCases,
-      openHealthCases: openCases,
-      underTreatmentHealthCases: openCases,
-      totalMedicalRecords,
-      activeCasesInTreatment,
-      milkWithdrawalHolds,
-      vaccinationProgramsCompleted,
-      vaccinationProgramsTotal,
-      pregnancyPositiveThisMonth: 2,
-      breedingEventsThisMonth: breedingDb.length || 4,
-      calvingsThisMonth: calvingDb.length || 2,
-      pendingTasksCount,
-      activeAlertsCount: milkAlertsDb.length + (sickAnimals > 0 ? 1 : 0),
-      recentActivities: [
-        { action: "Mastitis treatment recorded for HF-027", entityType: "Health", timestamp: "2024-05-14 09:30" },
-        { action: "Morning milk batch recorded (1,980.5 L)", entityType: "Milk", timestamp: "2024-05-14 07:15" },
-        { action: "Pregnancy confirmed for HF-052 via ultrasound", entityType: "Breeding", timestamp: "2024-05-13 16:45" },
-        { action: "High Producer TMR feed distributed to Shed 1", entityType: "Feed", timestamp: "2024-05-14 06:00" },
-      ]
-    }
+    data: summaryData
   });
 });
+
+// Top Milk Producers Endpoint
+app.get("/api/dashboard/top-producers", (req: Request, res: Response) => {
+  if (!animalsDb || animalsDb.length === 0) animalsDb = [...initialAnimals];
+  if (!milkRecordsDb || milkRecordsDb.length === 0) milkRecordsDb = generateInitialMilkRecords();
+
+  const todayStr = getLocalDateString(0);
+  const todayRecords = milkRecordsDb.filter(r => r.date === todayStr);
+
+  // Map each animal with their latest yield
+  const producers = animalsDb
+    .filter(a => a.status === "Lactating" || a.milk)
+    .map(a => {
+      const todayRec = todayRecords.find(r => r.animalId.toLowerCase() === a.id.toLowerCase());
+      const dailyYield = todayRec 
+        ? Number(todayRec.totalLitres || ((todayRec.morningLitres || 0) + (todayRec.eveningLitres || 0) + (todayRec.thirdMilkingLitres || 0)))
+        : Number(a.milk || 0);
+
+      return {
+        animalId: a.id,
+        name: a.name,
+        earTag: a.earTag || "",
+        breed: a.breed,
+        milk: Number(dailyYield.toFixed(1)),
+        morningLitres: todayRec?.morningLitres,
+        eveningLitres: todayRec?.eveningLitres,
+        status: a.status,
+        photo: a.photo
+      };
+    });
+
+  // Sort descending by milk yield
+  producers.sort((a, b) => b.milk - a.milk);
+
+  const rankedProducers = producers.slice(0, 5).map((p, index) => ({
+    ...p,
+    rank: index + 1
+  }));
+
+  res.json({
+    success: true,
+    data: rankedProducers
+  });
+});
+
+// Actionable Live Reminders Endpoint
+app.get("/api/dashboard/reminders", (req: Request, res: Response) => {
+  if (!animalsDb || animalsDb.length === 0) animalsDb = [...initialAnimals];
+  if (!breedingDb || breedingDb.length === 0) breedingDb = [...initialBreedingEvents];
+  if (!healthDb || healthDb.length === 0) healthDb = [...initialHealthRecords];
+  if (!vaccinationsDb || vaccinationsDb.length === 0) vaccinationsDb = [...initialVaccinations];
+  if (!tasksDb || tasksDb.length === 0) tasksDb = [...initialTasks];
+  if (!feedsDb || feedsDb.length === 0) feedsDb = [...initialFeeds];
+
+  const todayStr = getLocalDateString(0);
+  const reminders: Array<{
+    id: string;
+    title: string;
+    description: string;
+    dueDate: string;
+    priority: "High" | "Medium" | "Low";
+    targetPage: string;
+    targetId?: string;
+    category: "Breeding" | "Health" | "Milk Management" | "Feed" | "Inventory" | "Tasks & Reminders" | "General";
+    dotColor: "red" | "orange" | "blue" | "green";
+  }> = [];
+
+  // 1. Breeding: Pending PDs & Approaching Calvings
+  breedingDb.forEach(b => {
+    if (b.result === "Positive" && b.expectedCalving) {
+      reminders.push({
+        id: `REM-CALV-${b.id}`,
+        title: `Calving anticipated for ${b.animalId}`,
+        description: `Expected due date: ${b.expectedCalving} · Prepare maternity pen`,
+        dueDate: b.expectedCalving,
+        priority: "High",
+        targetPage: "Breeding",
+        targetId: b.animalId,
+        category: "Breeding",
+        dotColor: "orange"
+      });
+    } else if (b.result === "Pending" || !b.result) {
+      reminders.push({
+        id: `REM-PD-${b.id}`,
+        title: `Pregnancy Diagnosis due for ${b.animalId}`,
+        description: `Ultrasound check scheduled (AI Date: ${b.aiDate || b.heatDate || "Recent"})`,
+        dueDate: b.pdDate || todayStr,
+        priority: "High",
+        targetPage: "Breeding",
+        targetId: b.animalId,
+        category: "Breeding",
+        dotColor: "orange"
+      });
+    }
+  });
+
+  // 2. Health: Active Milk Withdrawals & In Treatment
+  healthDb.forEach(h => {
+    if (h.withdrawalDays > 0 && (h.status === "In Treatment" || (h.withdrawalUntil && h.withdrawalUntil >= todayStr))) {
+      reminders.push({
+        id: `REM-WITHDRAW-${h.id}`,
+        title: `Medicine withdrawal active (${h.animalId})`,
+        description: `Treated with ${h.medicine} for ${h.diagnosis} · Segregate milk until ${h.withdrawalUntil || "cleared"}`,
+        dueDate: h.withdrawalUntil || todayStr,
+        priority: "High",
+        targetPage: "Health",
+        targetId: h.animalId,
+        category: "Health",
+        dotColor: "red"
+      });
+    } else if (h.status === "In Treatment" || h.status === "Sick") {
+      reminders.push({
+        id: `REM-TREAT-${h.id}`,
+        title: `Active treatment follow-up (${h.animalId})`,
+        description: `${h.diagnosis} treatment by ${h.veterinarian || "Veterinarian"}`,
+        dueDate: h.followUpDate || todayStr,
+        priority: "Medium",
+        targetPage: "Health",
+        targetId: h.animalId,
+        category: "Health",
+        dotColor: "orange"
+      });
+    }
+  });
+
+  // 3. Vaccinations Scheduled
+  vaccinationsDb.forEach(v => {
+    if (v.status === "Scheduled") {
+      reminders.push({
+        id: `REM-VAC-${v.id}`,
+        title: `Vaccination: ${v.vaccineName}`,
+        description: `Target: ${v.targetGroup} · Batch: ${v.batchNumber || "Scheduled"}`,
+        dueDate: v.date || todayStr,
+        priority: "Medium",
+        targetPage: "Health",
+        category: "Health",
+        dotColor: "orange"
+      });
+    }
+  });
+
+  // 4. Low Inventory Feeds
+  feedsDb.forEach(f => {
+    const qty = Number(f.quantity || f.currentStock || 0);
+    const min = Number(f.minQuantity || f.reorderLevel || 100);
+    if (qty <= min) {
+      reminders.push({
+        id: `REM-FEED-${f.id}`,
+        title: `Low stock alert: ${f.name}`,
+        description: `Current: ${qty} ${f.unit || "kg"} (Reorder threshold: ${min} ${f.unit || "kg"})`,
+        dueDate: todayStr,
+        priority: "High",
+        targetPage: "Feed",
+        category: "Feed",
+        dotColor: "red"
+      });
+    }
+  });
+
+  // 5. Pending Farm Tasks
+  tasksDb.filter(t => !t.completed && t.status !== "Completed").slice(0, 3).forEach(t => {
+    reminders.push({
+      id: `REM-TASK-${t.id}`,
+      title: t.title,
+      description: `Assigned to: ${t.assignee || "Herdsman"} · ${t.category || "Task"}`,
+      dueDate: t.dueDate || todayStr,
+      priority: t.priority === "High" ? "High" : "Medium",
+      targetPage: "Tasks & Reminders",
+      category: "Tasks & Reminders",
+      dotColor: t.priority === "High" ? "red" : "blue"
+    });
+  });
+
+  // Sort by priority (High first), then limit to top 6 actionable reminders
+  const priorityOrder = { High: 1, Medium: 2, Low: 3 };
+  reminders.sort((a, b) => (priorityOrder[a.priority] || 2) - (priorityOrder[b.priority] || 2));
+
+  res.json({
+    success: true,
+    data: reminders.slice(0, 6)
+  });
+});
+
 
 // --- MASTER DATA & BREEDS ---
 const defaultBreeds = [

@@ -25,6 +25,9 @@ import {
   ModulePermission,
   AuditLogItem,
   SystemFlags,
+  DashboardSummary,
+  TopProducerAnimal,
+  DashboardReminder,
 } from "./types";
 import {
   initialAnimals,

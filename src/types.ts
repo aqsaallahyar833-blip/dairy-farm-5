@@ -509,3 +509,86 @@ export interface FarmEventNote {
   metric1?: string;
   metric2?: string;
 }
+
+export interface DashboardSummary {
+  // Herd
+  totalHerdAnimals: number;
+  totalAnimals: number;
+  lactatingCattle: number;
+  lactatingCows: number;
+  activeAnimals: number;
+  confirmedPregnant: number;
+  pregnantCows: number;
+  activePregnancies: number;
+  inTreatmentSick: number;
+  sickAnimals: number;
+  openHealthCases: number;
+  activeCasesInTreatment: number;
+  dryCows: number;
+  heifers: number;
+  calves: number;
+  bulls: number;
+
+  // Milk & Production
+  todayMilkLitres: number;
+  todayMilkTotal: number;
+  yesterdayMilkLitres: number;
+  avgMilkPerCow: number;
+  monthToDateMilkLitres: number;
+  monthlyMilkLitres: number;
+  monthlyGrossRevenue: number;
+  monthRevenue: number;
+  milkRevenue: number;
+
+  // Reproduction & AI
+  pregnanciesThisMonth: number;
+  pregnancyPositiveThisMonth: number;
+  totalBreedingEvents: number;
+  breedingEventsThisMonth: number;
+  calvingsAnticipated: number;
+  calvingsThisMonth: number;
+
+  // Health & Veterinary
+  totalMedicalRecords: number;
+  milkWithdrawalHolds: number;
+  vaccinationProgramsCompleted: number;
+  vaccinationProgramsTotal: number;
+
+  // Financial
+  totalRevenue: number;
+  totalIncome: number;
+  totalOperationalCost: number;
+  totalExpenses: number;
+  monthExpenses: number;
+  netProfit: number;
+  estimatedProfit: number;
+
+  // Extras
+  pendingTasksCount: number;
+  activeAlertsCount: number;
+}
+
+export interface TopProducerAnimal {
+  rank: number;
+  animalId: string;
+  name: string;
+  earTag: string;
+  breed: string;
+  milk: number;
+  morningLitres?: number;
+  eveningLitres?: number;
+  status: string;
+  photo?: string;
+}
+
+export interface DashboardReminder {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  priority: "High" | "Medium" | "Low";
+  targetPage: string;
+  targetId?: string;
+  category: "Breeding" | "Health" | "Milk Management" | "Feed" | "Inventory" | "Tasks & Reminders" | "General";
+  dotColor: "red" | "orange" | "blue" | "green";
+}
