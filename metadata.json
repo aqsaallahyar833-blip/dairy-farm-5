@@ -1,0 +1,8 @@
+{
+  "name": "Dairy Farm Management",
+  "description": "Comprehensive dairy farm management system for monitoring herd health, milk production, breeding records, feeds, rations, and finances.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

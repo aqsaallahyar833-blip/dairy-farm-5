@@ -1,11 +1,34 @@
-<div align="center">
+# Dairy Farm Management — React + TypeScript Frontend
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A frontend-only implementation based on the supplied Dairy Farm Management reference UI and Software Requirements Specification.
 
-  <h1>Built with AI Studio</h2>
+## Included
+- Dashboard matching the supplied visual structure
+- Animal master database and filters
+- Animal profile
+- Milk recording
+- Breeding / heat / AI / pregnancy workflow
+- Health / treatment / medicine withdrawal
+- Feed & ration
+- Inventory
+- Finance
+- Reports
+- Tasks & reminders
+- Settings / roles / permissions
+- Responsive desktop, tablet and mobile layouts
+- Sample data from the reference screen plus requirement-driven demo records
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## Run
+```bash
+npm install
+npm run dev
+```
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+Then open the Vite local URL shown in the terminal.
 
-</div>
+## Production build
+```bash
+npm run build
+```
+
+This package is intentionally frontend-only. Backend/API/database integration can be connected later to the specified ASP.NET Core Web API + MySQL stack.
